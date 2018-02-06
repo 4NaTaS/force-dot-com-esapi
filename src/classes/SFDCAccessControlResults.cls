@@ -20,27 +20,30 @@
  * results from access control function calls such as insertAsUser and updateAsUser.
  */
 global with sharing virtual class SFDCAccessControlResults {
-	
-	private Database.SaveResult [] saveResultsArr; // this object will hold the results for upadte and insert operations
-	private Database.DeleteResult [] deleteResultsArr; // this object will hold the results for delete operations
-	private SObject [] cleanObjectsArr; // this object will hold the actual objects used to insert/update into db
-	
-	global class AccessControlResultsException extends Exception {}
-	
+
+	private List<Database.SaveResult> saveResultsArr; // this object will hold the results for upadte and insert operations
+	private List<Database.UpsertResult> upsertResultsArr; // this object will hold the results for upadte and insert operations
+	private List<Database.DeleteResult> deleteResultsArr; // this object will hold the results for delete operations
+	private List<SObject> cleanObjectsArr; // this object will hold the actual objects used to insert/update into db
+
+	global class AccessControlResultsException extends Exception {
+	}
+
 	private SFDCAccessControlResults() {
 		// declare this function as private so it can't be used.
 		// the specific Insert/Update/Delete classes should be constructed instead.
-		
+
 		saveResultsArr = null;
 		deleteResultsArr = null;
+		upsertResultsArr = null;
 		cleanObjectsArr = null;
 	}
-	
+
 	/**
 	 * This class provides results info and functionality for insert operations.
 	 */
 	global with sharing class InsertResults extends SFDCAccessControlResults {
-		
+
 		/**
 		 * This constructor sets the objects that were actually inserted into the db, and also sets the results from that insert operation.
 		 */
@@ -119,6 +122,47 @@ global with sharing virtual class SFDCAccessControlResults {
 	}
 
 	/**
+	 * This class provides results info and functionality for upsert operations.
+	 */
+	global with sharing class UpsertResults extends SFDCAccessControlResults {
+
+		/**
+		 * This constructor sets the objects that were actually used to update the db, and also sets the results from that update operation.
+		 */
+		global UpsertResults(List<SObject> objects, List<Database.UpsertResult> results) {
+			super();
+			setCleanObjectsArr(objects);
+			setUpsertResultArr(results);
+		}
+
+		/**
+		 * Get the Database.SaveResult [] returned by the update operation.
+		 */
+		global List<Database.UpsertResult> getResults() {
+			return upsertResultsArr;
+		}
+
+		/**
+		 * Get the objects that were actually updated into the db.<br>
+		 * Note that these objects might not be the same as the objects you provided to the updateAsUser function.<br>
+		 * Depending on the current user permissions, the operation mode, and the fields you requested to set, this might<br>
+		 * not be all the fields you have in your original objects.
+		 */
+		global List<SObject> getUpdatedObjects() {
+			return cleanObjectsArr;
+		}
+
+		/**
+		 * Did the update operation succeed for all objects in the array?<br>
+		 * Note that if array operation mode was set to BEST_EFFORT, we will not get an exception even if some<br>
+		 * of the objects fail to update.
+		 */
+		global Boolean wasSuccessful() {
+			return wasUpsertSuccessful();
+		}
+	}
+
+	/**
 	 * This class provides results info and functionality for delete operations.
 	 */
 	global with sharing class DeleteResults extends SFDCAccessControlResults {
@@ -137,7 +181,7 @@ global with sharing virtual class SFDCAccessControlResults {
 		global Database.DeleteResult [] getResults() {
 			return deleteResultsArr;
 		}
-		
+
 		/**
 		 * Did the delete operation succeed for all objects in the array?<br>
 		 * Note that if array operation mode was set to BEST_EFFORT, we will not get an exception even if some<br>
@@ -147,46 +191,71 @@ global with sharing virtual class SFDCAccessControlResults {
 			return wasDeleteSuccessful();
 		}
 	}
-	
+
 	// main class private functions
-	
-	private void setCleanObjectsArr(SObject [] objects) {
-		if (objects == null)
+
+	private void setCleanObjectsArr(List<SObject> objects) {
+		if (objects == null) {
 			throw new AccessControlResultsException('objects must not be set to null');
+		}
 		cleanObjectsArr = objects;
 	}
 
-	private void setSaveResultsArr(Database.SaveResult [] results) {
-		if (results == null)
+	private void setSaveResultsArr(List<Database.SaveResult> results) {
+		if (results == null) {
 			throw new AccessControlResultsException('results must not be set to null');
+		}
 		saveResultsArr = results;
 	}
 
-	private void setDeleteResultsArr(Database.DeleteResult [] results) {
-		if (results == null)
+	private void setUpsertResultArr(List<Database.UpsertResult> results) {
+		if (results == null) {
 			throw new AccessControlResultsException('results must not be set to null');
+		}
+		upsertResultsArr = results;
+	}
+
+	private void setDeleteResultsArr(List<Database.DeleteResult> results) {
+		if (results == null) {
+			throw new AccessControlResultsException('results must not be set to null');
+		}
 		deleteResultsArr = results;
 	}
-	
+
 	private Boolean wasSaveSuccessful() {
-		if (saveResultsArr == null)
+		if (saveResultsArr == null) {
 			throw new AccessControlResultsException('saveResultsArr must not be null');
+		}
 		Integer i;
 		for (i = 0; i < saveResultsArr.size(); i++) {
-			if (saveResultsArr[i].isSuccess() == false)
+			if (!saveResultsArr[i].isSuccess()) {
 				return false;
-		} 
+			}
+		}
 		return true;
-	}	
+	}
+
+	private Boolean wasUpsertSuccessful() {
+		if (upsertResultsArr == null) {
+			throw new AccessControlResultsException('saveResultsArr must not be null');
+		}
+		Boolean upsertSuccessful = true;
+		for (Integer i = upsertResultsArr.size() - 1; i >= 0 && upsertSuccessful; --i) {
+			upsertSuccessful = upsertResultsArr[i].isSuccess();
+		}
+		return upsertSuccessful;
+	}
 
 	private Boolean wasDeleteSuccessful() {
-		if (deleteResultsArr == null)
+		if (deleteResultsArr == null) {
 			throw new AccessControlResultsException('deleteResultsArr must not be null');
+		}
 		Integer i;
 		for (i = 0; i < deleteResultsArr.size(); i++) {
-			if (deleteResultsArr[i].isSuccess() == false)
+			if (!deleteResultsArr[i].isSuccess()) {
 				return false;
-		} 
+			}
+		}
 		return true;
-	}	
+	}
 }
