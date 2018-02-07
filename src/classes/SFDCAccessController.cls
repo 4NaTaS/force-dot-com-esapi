@@ -212,7 +212,15 @@ global class SFDCAccessController {
 	private AccessControllerWithSharing acws; // sharing access control object that was created with sharing
 	private AccessControllerWithoutSharing acwos; // sharing access control object that was created without sharing
 	private AccessControllerInheritSharing acis; // sharing access control object that was created with sharing inherited from caller
-	private SharingMode smode; // the current sharing mode of this instance. We will call the proper instance from the above three based on this value.
+	private SharingMode smode {
+		get {
+			if (smode == null) {
+				smode = SharingMode.WITH;
+			}
+			return smode;
+		}
+		set;
+	} // the current sharing mode of this instance. We will call the proper instance from the above three based on this value.
 
 	/**
 	 * Default constructor - will set sharing mode to SharingMode.WITH, operation mode to OperationMode.ALL_OR_NONE,
@@ -2175,7 +2183,7 @@ global class SFDCAccessController {
 		 * to the SOQL as is, because they should only contain alphanumeric and under score
 		 */
 		private List<SObject> getObjects(List<SObject> objArray) {
-			List<SObject> res;
+			List<SObject> res = new List<SObject>();
 			SObject tempCleanObject;
 			for (SObject obj : objArray) {
 				tempCleanObject = getObject(obj);
@@ -2186,4 +2194,5 @@ global class SFDCAccessController {
 			return res;
 		}
 	}
+
 }
